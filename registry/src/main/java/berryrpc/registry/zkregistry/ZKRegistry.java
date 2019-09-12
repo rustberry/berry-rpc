@@ -50,10 +50,10 @@ public class ZKRegistry extends AbstractZooKeeperClient implements ServiceRegist
                     createPersistentZnode(path, (byte[]) ctx);
                     break;
                 case OK:
-                    log.info("Parent created");
+                    log.info("Parent created, path: " + path + "with ctx: (" + ctx + ")");
                     break;
                 case NODEEXISTS:
-                    log.warn("Parent already exists");
+                    log.info("Node: " + path + " already exists.");
                     break;
                 default:
                     log.error("Error creating parent path:",
@@ -66,8 +66,8 @@ public class ZKRegistry extends AbstractZooKeeperClient implements ServiceRegist
 
     @Override
     public void register(String interfaceName, String serverHost) {
-        createPersistentZnode(interfaceName, new byte[0]);
-        createEphemeralZnode(interfaceName + "/" + serverHost, "".getBytes());
+        createPersistentZnode(Constant.REGISTRY_PATH + "/" + interfaceName, new byte[0]);
+        createEphemeralZnode(Constant.REGISTRY_PATH + "/" + interfaceName + "/" + serverHost, "".getBytes());
     }
 
     private void createEphemeralZnode(String path, byte[] data) {
@@ -85,7 +85,7 @@ public class ZKRegistry extends AbstractZooKeeperClient implements ServiceRegist
                     log.info("Node: " + path + " created");
                     break;
                 case NODEEXISTS:
-                    log.info("Node: " + path + " already created before");
+                    log.info("Node: " + path + " already exists.");
                     break;
                 default:
                     log.error("Error creating ephemeral node", KeeperException.create(Code.get(rc), path));

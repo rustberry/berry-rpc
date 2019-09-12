@@ -18,6 +18,8 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,7 +65,6 @@ public class RpcServer implements ApplicationContextAware, InitializingBean {
         EventLoopGroup  boss = new NioEventLoopGroup(1);
         EventLoopGroup  worker = new NioEventLoopGroup();
         final RpcHandler rpcHandler = new RpcHandler(handlerMap);
-        final RpcDecoder decoder = new RpcDecoder(RpcRequest.class);
         final RpcEncoder encoder = new RpcEncoder();
 
         try {
@@ -75,22 +76,31 @@ public class RpcServer implements ApplicationContextAware, InitializingBean {
                         protected void initChannel(SocketChannel ch) throws Exception {
                             ChannelPipeline pipeline = ch.pipeline();
                             pipeline.addLast(encoder)
-                                    .addLast(decoder)
+                                    .addLast(new RpcDecoder(RpcRequest.class))
                                     .addLast(rpcHandler);
                         }
                     });
-            // register services
+            int port = Integer.parseInt(this.localAddress.split(":")[1]);
+            log.info("ServerChannel using port: " + port);
+            ChannelFuture future = bootstrap.bind(port).sync();
+
+            // Register services only after server had set up(bound)
             if (this.registry != null) {
                 for (String serviceInterface :handlerMap.keySet()){
                     registry.register(serviceInterface, this.localAddress);
                 }
             }
-            int port = Integer.parseInt(this.localAddress.split(":")[1]);
-            ChannelFuture future = bootstrap.bind(port);
+
             // When the parent channel was being closed, sync until it finishes
             future.channel().closeFuture().sync();
+
+            long currentTime = System.currentTimeMillis();
+            log.debug("ServerChannel Closed: " +
+                    new SimpleDateFormat("hh:mm:ss").format(new Date(currentTime)));
         } finally {
             boss.shutdownGracefully().sync();
+            log.debug("boss group shutdown. " + boss + " at: " +
+                    new SimpleDateFormat("hh:mm:ss").format(new Date(System.currentTimeMillis())));
             worker.shutdownGracefully().sync();
         }
     }

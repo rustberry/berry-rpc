@@ -2,13 +2,11 @@ package berryrpc.common.codec;
 
 import berryrpc.common.util.support.ProtostuffSerialization;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
 import java.util.List;
 
-@ChannelHandler.Sharable
 public class RpcDecoder extends ByteToMessageDecoder {
     private Class<?> genericType;
 
