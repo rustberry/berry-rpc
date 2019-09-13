@@ -1,7 +1,7 @@
-package serviceImpl;
+package berryrpc.sample.serviceImpl;
 
 import berryrpc.server.RpcService;
-import service.GreetingService;
+import berryrpc.sample.service.GreetingService;
 
 @RpcService(GreetingService.class)
 public class GreetingServiceImpl implements GreetingService {
