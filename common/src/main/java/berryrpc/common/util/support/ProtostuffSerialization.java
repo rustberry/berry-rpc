@@ -2,7 +2,6 @@ package berryrpc.common.util.support;
 
 import berryrpc.common.util.SerializationUtil;
 import io.protostuff.LinkedBuffer;
-import io.protostuff.ProtobufIOUtil;
 import io.protostuff.ProtostuffIOUtil;
 import io.protostuff.Schema;
 import io.protostuff.runtime.RuntimeSchema;
@@ -38,7 +37,7 @@ public class ProtostuffSerialization implements SerializationUtil {
         LinkedBuffer buffer = LinkedBuffer.allocate(LinkedBuffer.DEFAULT_BUFFER_SIZE);
         try {
             Schema<T> schema = getSchema(cls);
-            return ProtobufIOUtil.toByteArray(obj, schema, buffer);
+            return ProtostuffIOUtil.toByteArray(obj, schema, buffer);
         } catch (Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         } finally {

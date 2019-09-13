@@ -44,8 +44,14 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
 
     public ZKDiscovery(String registryHost) {
         this.registryHost = registryHost;
-        client = AsyncCuratorFramework.wrap(CuratorFrameworkFactory
-                .newClient(registryHost, new ExponentialBackoffRetry(1000, 3)));
+        CuratorFramework synchClient = CuratorFrameworkFactory
+                .newClient(registryHost, new ExponentialBackoffRetry(1000, 3));
+        log.debug("berry-rpc: syncClient begin to start()");
+        synchClient.start();
+        log.debug("berry-rpc: syncClient finished start()");
+        client = AsyncCuratorFramework.wrap(synchClient);
+//        client = AsyncCuratorFramework.wrap(CuratorFrameworkFactory
+//                .newClient(registryHost, new ExponentialBackoffRetry(1000, 3)));
         init(client);
     }
 
@@ -66,6 +72,7 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
         client.getChildren().forPath(this.registryPath)
                 .thenAccept(strings -> {
                     if (strings != null) {
+                        log.debug("Initial services are: " + strings);
                         for (String s : strings) {
                             serviceProviderMap.put(s, new ArrayList<>());
                             // Set the hosts providing this service.
@@ -73,7 +80,7 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
                         }
                     } else {
                         // retry
-                        log.warn("Services not established in RPC");
+                        log.warn("No initial services found under registryPath " + this.registryPath);
                         // successOnly ignores unnecessary notifications
                         retryOnceOnChildrenChanged(client.with(WatchMode.successOnly).watched()
                                 .getChildren().forPath(registryPath).event(),
@@ -124,7 +131,7 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
                 .thenAccept(strings -> {
                     for (String s : strings) {
                         if (!serviceProviderMap.containsKey(s)) {
-                            serviceProviderMap.put(s, new ArrayList<>());
+                            serviceProviderMap.put(s, new ArrayList<String>());
                             setHosts(client, s);
                         }
                     }
@@ -135,8 +142,21 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
         client.getChildren()
                 .forPath(this.registryPath + "/" + parentPathName)
                 .thenAccept(strings -> {
-                    serviceProviderMap.put(parentPathName, strings);
+                    serviceProviderMap.get(parentPathName).addAll(strings);
                 });
+    }
+
+    synchronized private void updateSynchronously() throws Exception {
+        List<String> children = client.unwrap().getChildren().forPath(this.registryPath);
+        for (String s : children) {
+            if (!serviceProviderMap.containsKey(s)) {
+                // Put in interfaces
+                serviceProviderMap.put(s, new ArrayList<>());
+                // Put in hosts that provide interface services
+                List<String> hosts = client.unwrap().getChildren().forPath(this.registryPath + "/" + s);
+                serviceProviderMap.get(s).addAll(hosts);
+            }
+        }
     }
 
     @Override
@@ -145,14 +165,23 @@ public class ZKDiscovery extends AbstractZooKeeperClient implements ServiceDisco
         if (!serviceProviderMap.containsKey(serviceInterfaceName)) {
             // Maybe a new service was published, so query for child again.
             // To reduce load/reliance on ZooKeeper, I chose not set watch to keep up-to-date.
-            update();
-            providers = serviceProviderMap.get(serviceInterfaceName);
+            try {
+                updateSynchronously();
+                providers = serviceProviderMap.get(serviceInterfaceName);
+            } catch (Exception e) {
+                log.error("Exception getting children from path " + this.registryPath);
+                log.error("providers: " + providers);
+                throw new RuntimeException("Exception getting children from path " + this.registryPath, e);
+            }
             if (providers == null) throw new RuntimeException("No such service: " + serviceInterfaceName + " found");
         }
 
          providers = serviceProviderMap.get(serviceInterfaceName);
 
-        if (providers.size() == 0) throw new RuntimeException("Service: " + serviceInterfaceName + " not found to be published");
+        if (providers.size() == 0) {
+            log.error("serviceProviderMap: " + serviceProviderMap.toString());
+            throw new RuntimeException("Service: " + serviceInterfaceName + " may not have been published, zero hosts found.");
+        }
 
         if (providers.size() == 1) {
             return providers.get(0);

@@ -3,17 +3,18 @@ package berryrpc.client;
 import berryrpc.common.RpcRequest;
 import berryrpc.common.RpcResponse;
 import berryrpc.registry.ServiceDiscovery;
-import lombok.extern.log4j.Log4j;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.UUID;
 
-@Log4j
+@Slf4j
 public class RpcProxy {
     private ServiceDiscovery serviceDiscovery;
     private String serviceAddress;
+    private RpcClient client;
 
     public RpcProxy(ServiceDiscovery discovery) {
         this.serviceDiscovery = discovery;
@@ -40,13 +41,18 @@ public class RpcProxy {
                         request.setParameterTypes(method.getParameterTypes());
 
                         if (serviceDiscovery != null) serviceAddress = serviceDiscovery.discover(request.getInterfaceName());
-                        RpcClient client = new RpcClient(serviceAddress);
+                        if (client == null) {
+                            client = new RpcClient(serviceAddress);
+                        }
 
                         RpcResponse response = client.send(request);
+                        log.debug("Outbound request: " + request);
                         if (response == null) {
+                            shutdown();
                             throw new RuntimeException("RPC response is null");
                         }
                         if (response.hasException()) {
+                            log.error("Response: " + response + " has exception: " + response.getException());
                             throw response.getException();
                         } else {
                             return response.getResult();
@@ -54,5 +60,13 @@ public class RpcProxy {
                     }
                 }
         );
+    }
+
+    public void shutdown() {
+        if (client != null) {
+            client.shutDownConnection();
+        } else {
+            log.debug("This.client is null during shutdown");
+        }
     }
 }

@@ -4,9 +4,11 @@ import berryrpc.common.util.support.ProtostuffSerialization;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
+@Slf4j
 public class RpcDecoder extends ByteToMessageDecoder {
     private Class<?> genericType;
 
@@ -29,7 +31,10 @@ public class RpcDecoder extends ByteToMessageDecoder {
         byte[] byteArray = new byte[dataLen];
         in.readBytes(byteArray);
 
-        out.add(ProtostuffSerialization.deserialize(byteArray, this.genericType));
+        Object msg = ProtostuffSerialization.deserialize(byteArray, this.genericType);
+        log.debug("Inbound request/response received: " + msg);
+        out.add(msg);
+//        out.add(ProtostuffSerialization.deserialize(byteArray, this.genericType));
     }
     /*public RpcDecoder(com.google.protobuf.MessageLite prototype) {
         super(prototype);
